@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Auth & Session files (sensitive - never commit!)
+auth_info/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo

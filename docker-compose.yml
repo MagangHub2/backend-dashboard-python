@@ -1,0 +1,94 @@
+version: "3.9"
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:16-alpine
+    container_name: wa-dashboard-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: dashboard_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - wa-network
+
+  # Python Backend (FastAPI)
+  backend:
+    build:
+      context: ./backend-dashboard-python
+      dockerfile: Dockerfile
+    container_name: wa-dashboard-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      # Database
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=dashboard_db
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres123
+      # JWT
+      - SECRET_KEY=super-secret-key-change-in-production
+      - ALGORITHM=HS256
+      - ACCESS_TOKEN_EXPIRE_MINUTES=60000
+      # WhatsApp — pilih "baileys" atau "whapi"
+      - WA_PROVIDER=baileys
+      - BAILEYS_SERVICE_URL=http://wa-baileys:3000
+      - BAILEYS_API_KEY=baileys-internal-2026
+      # Bot AI — isi URL dan key dari provider AI yang dipakai
+      - BOT_REPLY_API_URL=
+      - BOT_REPLY_API_KEY=
+      - BOT_REPLY_API_TIMEOUT_SECONDS=15
+      # Nomor WA admin yang bisa kirim command ke bot (comma-separated)
+      - WHAPI_ADMINS=
+      - NODE_ENV=production
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend-dashboard-python:/app
+    networks:
+      - wa-network
+
+  # WhatsApp Baileys Service (Node.js)
+  wa-baileys:
+    build:
+      context: ./wa-baileys-service
+      dockerfile: Dockerfile
+    container_name: wa-dashboard-baileys
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      - PORT=3000
+      - PYTHON_WEBHOOK_URL=http://backend:8000/webhook/baileys
+      - PYTHON_BACKEND_URL=http://backend:8000
+      - INTERNAL_API_KEY=baileys-internal-2026
+    depends_on:
+      - backend
+    volumes:
+      - ./wa-baileys-service/src:/app/src
+      - wa_auth_info:/app/auth_info
+    stdin_open: true
+    tty: true
+    networks:
+      - wa-network
+
+volumes:
+  postgres_data:
+  wa_auth_info:
+
+networks:
+  wa-network:
+    driver: bridge
